@@ -1,0 +1,326 @@
+---
+title: "Penguin Assignment - Question 4"
+output:
+  pdf_document: default
+  html_document: default
+date: "2022-11-26"
+candidate number: 1054663
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading packages and visualising the data
+
+Install and load packages, load the data (palmerpenguins):
+
+```{r}
+library(ggplot2)
+library(janitor)
+library(dplyr)
+library(palmerpenguins)
+```
+
+Set the working directory in files (can also set working directory using the command 'setwd()').
+
+Visualising the data:
+
+```{r}
+summary(penguins_raw)
+```
+
+```{r}
+head(penguins_raw)
+```
+
+```{r}
+names(penguins_raw)
+```
+
+# Cleaning the data
+
+I first need to make a safe copy of the raw data by making a new folder within the working directory. 
+
+```{r}
+write.csv(penguins_raw, paste0("data_raw/penguins_raw.csv"))
+```
+
+To avoid overwriting the code, I need to re-read in the raw data:
+
+```{r}
+penguins_raw <- read.csv("data_raw/penguins_raw.csv")
+```
+
+Use piping to avoid overwriting the code.
+
+I will now make a function called cleaning (and save this to a separate r script):
+
+```{r}
+cleaning <- function(penguins_raw){
+  penguins_raw %>%
+  select(-starts_with("Delta")) %>%
+select(-Comments) %>%
+  clean_names()}
+
+remove_empty_flipper_length_and_mass <- function(penguins_clean){
+  penguins_clean %>%
+    filter(!is.na(flipper_length_mm)) %>%
+    filter(!is.na(body_mass_g)) %>%
+    select(body_mass_g, flipper_length_mm, species)
+}
+```
+
+I can now now clean my data using the following code:
+
+```{r}
+source("functions/cleaning.r")
+```
+
+I can now apply these functions to the penguins_raw dataset:
+
+```{r}
+penguins_clean <- cleaning(penguins_raw)
+penguins_now_clean <- remove_empty_flipper_length_and_mass(penguins_clean)
+
+write.csv(penguins_clean, paste0("data_clean/penguins_clean.csv"))
+write.csv(penguins_now_clean, paste0("data_clean/penguins_now_clean.csv"))
+          
+```
+
+```{r}
+names(penguins_now_clean)
+```
+
+# Make a statistical test
+
+I am going to test whether body mass predicts flipper length in penguins. 
+
+H0: body mass does not predict flipper length in penguins
+H1: body mass does predict flipper length in penguins 
+
+To visualise my data, first I am going to plot a scatter graph:
+
+```{r}
+ggplot(data=penguins_now_clean, aes(x=body_mass_g, y=flipper_length_mm)) + geom_point()
+
+```
+
+Next, I am going to make a linear regression
+
+```{r}
+penguins_model <- lm(flipper_length_mm ~ body_mass_g, data=penguins_now_clean)
+```
+
+```{r}
+summary(penguins_model)
+```
+
+The R2 value shows us that 75.83% of variance in flipper length is explained by body mass. Furthermore, we can see that the y-intercept for the slope is 1.367e+02, whilst the slope is 1.528e-02. 
+
+I will then find the confidence intervals of these estimates using the following code:
+
+```{r}
+confint(penguins_model)
+```
+
+Next, I am going to test my assumptions of normality and homogeneity of variance using a qqplot and a residuals vs fitted plot: 
+
+```{r}
+plot(penguins_model, which=2)
+plot(penguins_model, which=1)
+```
+Using visual assessment, points in the qq plot fall mostly along the dashed line, therefore the assumption of normality is well met. In the residuals vs fitted plot, the red line falls mostly along the dashed line and the residuals are arranged randomly around the line, therefore the assumption of homogeneity of variance is well met. It is therefore appropriate to conduct an anova statistical test.
+
+Next, I want to test the statistical significance of my regression line using ANOVA. 
+
+```{r}
+anova(penguins_model)
+```
+
+The p-value of 2.2e-16 is less than 0.05, and so I can reject the null hypothesis. Therefore, there is a significant effect of penguin species on body mass. I will now create a figure to illustrate this. 
+
+```{r}
+ggplot(data = penguins_now_clean, aes(x = body_mass_g, y = flipper_length_mm)) + 
+  geom_point(colour = "orange") + geom_smooth(method="lm") + 
+  labs(x="Body Mass (g)", y="Flipper Length (mm)", 
+       title = "Relationship between body mass and flipper length in 3 species of penguin") + 
+  theme_classic()
+```
+
+In this graph we can see that there is a strong positive correlation between body mass and flipper length in penguins - body mass is a good predictor of flipper length. To improve this graph, it would be useful to colour points by different species type, as this would help to visualise whether the correlation differs between species. 
+
+I have also saved this code as a seperate function called plot_penguin_regression. This means I can call on this graph using the following code:
+
+```{r}
+source("functions/plotting.r")
+
+penguin_regression1 <- plot_penguin_regression1(penguins_now_clean)
+penguin_regression1
+```
+
+
+Simpson's paradox occurs when a trend that appears in several combined groups is not the same as in several different groups. To check this not the case, I am going to also individually test the regression between flipper length and body mass for each species of penguin. 
+
+First, I will look at adelie penguins:
+
+```{r}
+adelie <- filter(penguins_now_clean, species == "Adelie Penguin (Pygoscelis adeliae)")
+
+```
+
+```{r}
+adelie_model <- lm(flipper_length_mm ~ body_mass_g, adelie)
+summary(adelie_model)
+```
+This shows that for adelie penguins, variation in body mass only explains 21.4% of variation in flipper length, which is less than when the three penguin species were combined. 
+
+```{r}
+anova(adelie_model)
+```
+
+However, the p-value is 1.343e-09 which is still significantly less than 0.05, therefore I can reject the null hypothesis - body mass is a good predictor of flipper length in adelie penguins. 
+
+Next, I will do the same for chinstrap penguins. 
+
+```{r}
+chinstrap <- filter(penguins_now_clean, species == "Chinstrap penguin (Pygoscelis antarctica)")
+
+```
+
+```{r}
+chinstrap_model <- lm(flipper_length_mm ~ body_mass_g, chinstrap)
+summary(chinstrap_model)
+```
+This shows that for adelie penguins, variation in body mass explains 40.27% of variation in flipper length, which is also less than when the three penguin species were combined. 
+
+```{r}
+anova(chinstrap_model)
+```
+However, the p-value is 3.748e-09 which is still significantly less than 0.05, therefore I can reject the null hypothesis - body mass is a good predictor of flipper length in chinstrap penguins. 
+
+Finally, I will look at gentoo penguins:
+
+```{r}
+gentoo <- filter(penguins_now_clean, species == "Gentoo penguin (Pygoscelis papua)")
+
+```
+
+```{r}
+gentoo_model <- lm(flipper_length_mm ~ body_mass_g, gentoo)
+summary(gentoo_model)
+```
+
+This shows that for gentoo penguins, variation in body mass only explains 48.96% of variation in flipper length, which is still less than when the three penguin species were combined. 
+
+```{r}
+anova(gentoo_model)
+```
+
+However, the p-value is 2.2e-16 which is still significantly less than 0.05, therefore I can reject the null hypothesis - body mass is a good predictor of flipper length in gentoo penguins. 
+
+Therefore, whilst variation in body mass explains less of the variation in flipper length when each species is tested seperately, for all three species, variation in body mass is still a good predictor of variation in flipper length.
+
+To show this visually, I am now going to plot these three regressions on the same figure. I will also save this code as a function in a seperate r script called 'plotting.r'.
+
+```{r}
+ggplot(penguins_now_clean, aes(x = body_mass_g, y = flipper_length_mm, colour = species)) + 
+  geom_point(size = 2, alpha = 0.8) + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  theme_classic() + 
+  scale_colour_manual(values = c("darkorange","darkblue","hotpink")) + 
+  labs(title = "Body mass and flipper length in Adelie, Chinstrap and Gentoo Penguins", 
+       x = "Body Mass (g)", y = "Flipper Length (mm)", colour = "Penguin species") 
+```
+From this figure, we can see that for each penguin species, when considered individually, there is still a positive correlation between body mass and flipper length. Therefore, body mass is a good predictor of flipper length in adelie, chinstrap and gentoo penguins, and penguins with a greater body mass are likely to have longer flippers
+
+Because I have saved this plot as a separate function, I can also call on this graph using the following code:
+
+```{r}
+source("functions/plotting.r")
+
+penguin_regression2 <- plot_penguin_regression2(penguins_now_clean)
+penguin_regression2
+```
+
+I will now save my images as a png:
+
+```{r}
+library(ragg)
+```
+
+Saving figure 1 as a png:
+
+```{r}
+agg_png("figures/penguins_regression1_25x15.png",
+        width=25, height=15, units="cm", res=600, scaling=1.4)
+penguin_regression1
+dev.off()
+```
+
+Saving figure 2 as a png:
+
+```{r}
+agg_png("figures/penguins_regression2_30x15.png",
+        width=30, height=15, units="cm", res=600, scaling=1.4)
+penguin_regression2
+dev.off()
+```
+
+I can also save the following code as a function inside a separate r script:
+
+```{r}
+save_graph1_png <- function(penguins_now_clean,
+                                   filename, size, res, scaling){
+    agg_png("figures/penguins_regression1_25x15.png", 
+            width   =  25, 
+            height  =  15, 
+            units   =  "cm", 
+            res     =  600, 
+            scaling =  1.4)
+    penguins_regression1 <- plot_penguin_regression1(penguins_now_clean)
+    print(penguins_regression1)
+    dev.off()
+}
+
+save_graph2_png <- function(penguins_now_clean,
+                            filename, size, res, scaling){
+  agg_png("figures/penguins_regression2_30x15.png", 
+          width   =  30, 
+          height  =  15, 
+          units   =  "cm", 
+          res     =  600, 
+          scaling =  1.4)
+  penguins_regression2 <- plot_penguin_regression2(penguins_now_clean)
+  print(penguins_regression2)
+  dev.off()
+}
+```
+ 
+ I can now call on this function:
+ 
+```{r}
+source("functions/figures.r")
+penguin_regression1.png <- save_graph1_png(penguins_now_clean)
+penguin_regression2.png <- save_graph2_png(penguins_now_clean)
+```
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
